@@ -10,6 +10,8 @@ const AudioModule = (() => {
 
   function ensureContext() {
     if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    // iOS starts AudioContext suspended even inside a gesture; must resume explicitly
+    if (ctx.state === 'suspended') ctx.resume();
   }
 
   function start() {

@@ -24,6 +24,11 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 100%;
+  /* Prevent text selection and iOS callout menu on fast/accidental taps */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 header {
