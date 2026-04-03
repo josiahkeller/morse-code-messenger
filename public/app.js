@@ -77,6 +77,7 @@ const DisplayModule = (() => {
   const rows = [];
   const clientState = new Map();
   let lastGlobalEndTime = null;
+  let lastStartSenderId = null;
 
   // Persistent color per clientId — bright random hue, vivid saturation/lightness
   const colorMap = new Map();
@@ -107,10 +108,13 @@ const DisplayModule = (() => {
     const lastRow = rows[rows.length - 1];
     const gapTooLong = !lastRow || lastGlobalEndTime === null || (now - lastGlobalEndTime) > GAP_THRESHOLD_MS;
     const nearEdge = lastRow && isNearEdge(lastRow);
+    const differentSender = lastRow && lastStartSenderId !== clientId;
 
-    if (gapTooLong || nearEdge) {
+    if (gapTooLong || nearEdge || differentSender) {
       rows.push({ startTime: now, segments: [] });
     }
+
+    lastStartSenderId = clientId;
 
     const rowIndex = rows.length - 1;
     const row = rows[rowIndex];
