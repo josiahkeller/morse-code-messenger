@@ -52,9 +52,13 @@ function broadcast(data, excludeId = null) {
 
 const wss = new WebSocketServer({ server });
 
+const tag = (id) => id.slice(0, 6);
+const ts  = () => new Date().toISOString().slice(11, 23); // HH:MM:SS.mmm
+
 wss.on('connection', (ws) => {
   const clientId = randomUUID();
   clients.set(clientId, { ws, signalTimeout: null });
+  console.log(`[${ts()}] CONNECT   ${tag(clientId)}  (${clients.size} connected)`);
 
   // Send this client its assigned ID and current count (including itself)
   ws.send(JSON.stringify({ type: 'init', clientId, count: clients.size }));
@@ -74,15 +78,16 @@ wss.on('connection', (ws) => {
     if (!client) return;
 
     if (msg.type === 'signal_start') {
-      // Clear any existing safety timeout
+      console.log(`[${ts()}] START     ${tag(clientId)}`);
       clearTimeout(client.signalTimeout);
-      // Safety: auto-end if client doesn't send signal_end within 3100ms
       client.signalTimeout = setTimeout(() => {
+        console.log(`[${ts()}] TIMEOUT   ${tag(clientId)}  (no signal_end received)`);
         broadcast({ type: 'signal_end', clientId });
       }, 1100);
       broadcast({ type: 'signal_start', clientId });
 
     } else if (msg.type === 'signal_end') {
+      console.log(`[${ts()}] END       ${tag(clientId)}`);
       clearTimeout(client.signalTimeout);
       client.signalTimeout = null;
       broadcast({ type: 'signal_end', clientId });
@@ -92,10 +97,12 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     const client = clients.get(clientId);
     if (client) {
-      // If signal was active, broadcast a synthetic end
       if (client.signalTimeout) {
         clearTimeout(client.signalTimeout);
+        console.log(`[${ts()}] DISC+END  ${tag(clientId)}  (disconnected mid-signal)`);
         broadcast({ type: 'signal_end', clientId });
+      } else {
+        console.log(`[${ts()}] DISC      ${tag(clientId)}  (${clients.size - 1} connected)`);
       }
       clients.delete(clientId);
     }
