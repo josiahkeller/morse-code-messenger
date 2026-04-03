@@ -79,12 +79,36 @@ const DisplayModule = (() => {
   let lastGlobalEndTime = null;
   let lastStartSenderId = null;
 
-  // Persistent color per clientId — bright random hue, vivid saturation/lightness
+  // Assign hues by always picking the midpoint of the largest gap in the circle.
+  // This guarantees each new color is as distinct as possible from all existing ones.
+  // Sequence: 0°, 180°, 90°, 270°, 45°, 135°, 225°, 315°, ...
   const colorMap = new Map();
+  const assignedHues = [];
+
   function colorFor(clientId) {
     if (!colorMap.has(clientId)) {
-      const hue = Math.floor(Math.random() * 360);
-      colorMap.set(clientId, `hsl(${hue}, 100%, 62%)`);
+      let hue;
+      if (assignedHues.length === 0) {
+        hue = 0;
+      } else {
+        const sorted = [...assignedHues].sort((a, b) => a - b);
+        let maxGap = 0;
+        let bestHue = 0;
+        for (let i = 0; i < sorted.length; i++) {
+          const curr = sorted[i];
+          const next = sorted[(i + 1) % sorted.length];
+          const gap = i === sorted.length - 1
+            ? (sorted[0] + 360 - curr)   // wrap-around gap
+            : (next - curr);
+          if (gap > maxGap) {
+            maxGap = gap;
+            bestHue = (curr + gap / 2) % 360;
+          }
+        }
+        hue = bestHue;
+      }
+      assignedHues.push(hue);
+      colorMap.set(clientId, `hsl(${Math.round(hue)}, 100%, 62%)`);
     }
     return colorMap.get(clientId);
   }
