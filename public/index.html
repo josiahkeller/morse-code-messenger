@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Morse Code Messenger</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Morse Code Messenger</h1>
+    <div class="user-count">
+      <span id="others-count">0</span> others connected
+    </div>
+  </header>
+
+  <main>
+    <div class="display-wrapper">
+      <canvas id="display"></canvas>
+    </div>
+
+    <button id="transmit" aria-label="Hold to transmit">
+      Hold to Transmit
+    </button>
+
+    <details id="settings">
+      <summary>Settings</summary>
+      <div class="settings-body">
+        <label>
+          <input type="checkbox" id="mute-audio">
+          Mute audio
+        </label>
+        <label id="vibrate-label">
+          <input type="checkbox" id="enable-vibrate">
+          Vibrate
+          <span id="vibrate-note"></span>
+        </label>
+      </div>
+    </details>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
