@@ -7,7 +7,6 @@ const AudioModule = (() => {
   let ctx = null;
   let oscillator = null;
   let gainNode = null;
-  let startPending = false;
 
   function ensureContext() {
     if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -17,30 +16,25 @@ const AudioModule = (() => {
 
   function start() {
     ensureContext();
-    startPending = true;
-    const doStart = () => {
-      if (!startPending) return; // stop() was called before resume completed
-      startPending = false;
-      if (oscillator) return;
-      oscillator = ctx.createOscillator();
-      gainNode = ctx.createGain();
-      oscillator.type = 'sine';
-      oscillator.frequency.value = 600;
-      gainNode.gain.setValueAtTime(0, ctx.currentTime);
-      gainNode.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.005);
-      oscillator.connect(gainNode);
-      gainNode.connect(ctx.destination);
-      oscillator.start();
-    };
-    if (ctx.state !== 'running') {
-      ctx.resume().then(doStart);
-    } else {
-      doStart();
-    }
+    if (oscillator) return;
+    // Create and start the oscillator synchronously within the user gesture.
+    // iOS only allows audio nodes to start in the synchronous part of a gesture handler;
+    // an async .then() callback is considered outside the gesture and is blocked.
+    oscillator = ctx.createOscillator();
+    gainNode = ctx.createGain();
+    oscillator.type = 'sine';
+    oscillator.frequency.value = 600;
+    gainNode.gain.setValueAtTime(0, ctx.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.005);
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    oscillator.start();
+    // Resume after scheduling — if context was suspended the oscillator will
+    // play from the scheduled time once the context starts running.
+    if (ctx.state !== 'running') ctx.resume();
   }
 
   function stop() {
-    startPending = false; // cancel any pending async start
     if (!oscillator) return;
     const now = ctx.currentTime;
     gainNode.gain.setValueAtTime(gainNode.gain.value, now);
@@ -142,6 +136,12 @@ const DisplayModule = (() => {
   }
 
   function signalStart(clientId) {
+    // If this client already has an open segment, close it first.
+    // Prevents abandoned segments when duplicate signal_starts arrive.
+    if (clientState.has(clientId)) {
+      signalEnd(clientId);
+    }
+
     const now = Date.now();
     const lastRow = rows[rows.length - 1];
     const gapTooLong = !lastRow || lastGlobalEndTime === null || (now - lastGlobalEndTime) > GAP_THRESHOLD_MS;

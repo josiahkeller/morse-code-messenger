@@ -78,8 +78,14 @@ wss.on('connection', (ws) => {
     if (!client) return;
 
     if (msg.type === 'signal_start') {
+      if (client.signalTimeout) {
+        // Previous signal still open — close it before starting a new one
+        console.log(`[${ts()}] IMPLICIT-END ${tag(clientId)}  (new start before end)`);
+        clearTimeout(client.signalTimeout);
+        client.signalTimeout = null;
+        broadcast({ type: 'signal_end', clientId });
+      }
       console.log(`[${ts()}] START     ${tag(clientId)}`);
-      clearTimeout(client.signalTimeout);
       client.signalTimeout = setTimeout(() => {
         console.log(`[${ts()}] TIMEOUT   ${tag(clientId)}  (no signal_end received)`);
         broadcast({ type: 'signal_end', clientId });
