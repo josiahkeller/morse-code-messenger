@@ -92,8 +92,7 @@ const DisplayModule = (() => {
     const rect = canvas.parentElement.getBoundingClientRect();
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
-    canvas.style.width = rect.width + 'px';
-    canvas.style.height = rect.height + 'px';
+    // CSS (position: absolute, width/height 100%) controls display size — no style assignment here
   }
 
   // True if the time cursor in `row` is within WRAP_MARGIN_MS of the canvas right edge
