@@ -16,16 +16,23 @@ const AudioModule = (() => {
 
   function start() {
     ensureContext();
-    if (oscillator) return; // already playing
-    oscillator = ctx.createOscillator();
-    gainNode = ctx.createGain();
-    oscillator.type = 'sine';
-    oscillator.frequency.value = 600;
-    gainNode.gain.setValueAtTime(0, ctx.currentTime);
-    gainNode.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.005);
-    oscillator.connect(gainNode);
-    gainNode.connect(ctx.destination);
-    oscillator.start();
+    const doStart = () => {
+      if (oscillator) return;
+      oscillator = ctx.createOscillator();
+      gainNode = ctx.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.value = 600;
+      gainNode.gain.setValueAtTime(0, ctx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.005);
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      oscillator.start();
+    };
+    if (ctx.state !== 'running') {
+      ctx.resume().then(doStart);
+    } else {
+      doStart();
+    }
   }
 
   function stop() {
@@ -91,7 +98,7 @@ const DisplayModule = (() => {
     if (!colorMap.has(clientId)) {
       let hue;
       if (assignedHues.length === 0) {
-        hue = 0;
+        hue = Math.random() * 360;
       } else {
         const sorted = [...assignedHues].sort((a, b) => a - b);
         let maxGap = 0;
@@ -291,6 +298,11 @@ const WSModule = (() => {
     });
 
     ws.addEventListener('close', () => {
+      // Clean up any open canvas segment and local audio before reconnecting.
+      // The server already broadcast signal_end with the old clientId to others,
+      // but after reconnect we get a new clientId and would never receive it ourselves.
+      if (myClientId) DisplayModule.signalEnd(myClientId);
+      stopLocalOutput();
       ws = null;
       setTimeout(connect, reconnectDelay);
       reconnectDelay = Math.min(reconnectDelay * 2, 10000);
