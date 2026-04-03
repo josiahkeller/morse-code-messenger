@@ -296,3 +296,28 @@ function endTransmit() {
 
 window.addEventListener('pointerup', endTransmit);
 window.addEventListener('pointercancel', endTransmit);
+
+// ---------------------------------------------------------------------------
+// Spacebar support for desktop users
+// ---------------------------------------------------------------------------
+window.addEventListener('keydown', (e) => {
+  if (e.code !== 'Space') return;
+  // Don't interfere with inputs, checkboxes, buttons, etc.
+  if (e.target !== document.body && e.target !== document.documentElement) return;
+  if (e.repeat) return; // ignore key-repeat auto-fire
+  e.preventDefault(); // prevent page scroll
+
+  if (transmitting) return;
+  transmitting = true;
+  transmitBtn.classList.add('active');
+
+  if (!isMuted()) AudioModule.start();
+  if (isVibrateOn()) VibrationModule.start();
+
+  WSModule.send({ type: 'signal_start' });
+});
+
+window.addEventListener('keyup', (e) => {
+  if (e.code !== 'Space') return;
+  endTransmit();
+});
