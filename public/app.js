@@ -7,6 +7,7 @@ const AudioModule = (() => {
   let ctx = null;
   let oscillator = null;
   let gainNode = null;
+  let startPending = false;
 
   function ensureContext() {
     if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -16,7 +17,10 @@ const AudioModule = (() => {
 
   function start() {
     ensureContext();
+    startPending = true;
     const doStart = () => {
+      if (!startPending) return; // stop() was called before resume completed
+      startPending = false;
       if (oscillator) return;
       oscillator = ctx.createOscillator();
       gainNode = ctx.createGain();
@@ -36,6 +40,7 @@ const AudioModule = (() => {
   }
 
   function stop() {
+    startPending = false; // cancel any pending async start
     if (!oscillator) return;
     const now = ctx.currentTime;
     gainNode.gain.setValueAtTime(gainNode.gain.value, now);
@@ -332,7 +337,8 @@ const transmitBtn = document.getElementById('transmit');
 let transmitting = false;
 
 transmitBtn.addEventListener('pointerdown', (e) => {
-  e.preventDefault();
+  // Don't call e.preventDefault() here — on iOS it can suppress pointerup.
+  // touch-action: none in CSS already prevents scroll/zoom on this element.
   if (transmitting) return;
   transmitting = true;
   transmitBtn.classList.add('active');
@@ -355,11 +361,17 @@ function stopLocalOutput() {
 function endTransmit() {
   if (!transmitting) return;
   stopLocalOutput();
+  // Close our own canvas bar immediately — don't wait for server round-trip,
+  // which can fail on flaky mobile connections.
+  DisplayModule.signalEnd(WSModule.getClientId());
   WSModule.send({ type: 'signal_end' });
 }
 
 window.addEventListener('pointerup', endTransmit);
 window.addEventListener('pointercancel', endTransmit);
+// touchend/touchcancel as fallbacks — iOS pointer events can be unreliable
+window.addEventListener('touchend', endTransmit);
+window.addEventListener('touchcancel', endTransmit);
 
 // ---------------------------------------------------------------------------
 // Spacebar support for desktop users
