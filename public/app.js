@@ -235,9 +235,7 @@ function isVibrateOn() { return VibrationModule.supported && enableVibrateCheckb
 // WSModule — WebSocket connection with exponential backoff reconnect
 // ---------------------------------------------------------------------------
 const WSModule = (() => {
-  const wsUrl = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
-    ? `ws://${location.host}`
-    : `wss://${location.host}`;
+  const wsUrl = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`;
 
   let ws = null;
   let myClientId = null;
