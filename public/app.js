@@ -337,13 +337,13 @@ const transmitBtn = document.getElementById('transmit');
 let transmitting = false;
 
 transmitBtn.addEventListener('pointerdown', (e) => {
-  // Don't call e.preventDefault() here — on iOS it can suppress pointerup.
-  // touch-action: none in CSS already prevents scroll/zoom on this element.
   if (transmitting) return;
+  // Capture the pointer so pointerup/pointercancel fire on this element
+  // even if the finger drifts off — reliable on iOS Safari 13.4+
+  transmitBtn.setPointerCapture(e.pointerId);
   transmitting = true;
   transmitBtn.classList.add('active');
 
-  // Immediately start local audio + vibration (no server round-trip)
   if (!isMuted()) AudioModule.start();
   if (isVibrateOn()) VibrationModule.start();
 
@@ -361,17 +361,23 @@ function stopLocalOutput() {
 function endTransmit() {
   if (!transmitting) return;
   stopLocalOutput();
-  // Close our own canvas bar immediately — don't wait for server round-trip,
-  // which can fail on flaky mobile connections.
   DisplayModule.signalEnd(WSModule.getClientId());
   WSModule.send({ type: 'signal_end' });
 }
 
+// Primary end-of-press listeners on the button (pointer capture ensures these fire)
+transmitBtn.addEventListener('pointerup', endTransmit);
+transmitBtn.addEventListener('pointercancel', endTransmit);
+transmitBtn.addEventListener('lostpointercapture', endTransmit);
+
+// Window fallbacks for anything that slips through
 window.addEventListener('pointerup', endTransmit);
 window.addEventListener('pointercancel', endTransmit);
-// touchend/touchcancel as fallbacks — iOS pointer events can be unreliable
-window.addEventListener('touchend', endTransmit);
-window.addEventListener('touchcancel', endTransmit);
+
+// End transmission if the page is hidden (incoming call, app switch, etc.)
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) endTransmit();
+});
 
 // ---------------------------------------------------------------------------
 // Spacebar support for desktop users
