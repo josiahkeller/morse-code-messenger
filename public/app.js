@@ -58,7 +58,7 @@ const VibrationModule = (() => {
 })();
 
 // ---------------------------------------------------------------------------
-// DisplayModule — canvas timeline of signals, one row per client
+// DisplayModule — canvas timeline of signals, one row per time window
 // ---------------------------------------------------------------------------
 const DisplayModule = (() => {
   const PIXELS_PER_MS = 0.12;
@@ -66,16 +66,27 @@ const DisplayModule = (() => {
   const SIGNAL_THICKNESS = 16;
   const BASELINE_THICKNESS = 2;
   const PADDING_LEFT = 8;
-  const GAP_THRESHOLD_MS = 3000; // new row after 3s silence
+  const GAP_THRESHOLD_MS = 3000; // new row after 3s of silence
+  const WRAP_MARGIN_MS = 1000;   // preemptively wrap when <1s of canvas space remains
 
   const canvas = document.getElementById('display');
   const dpr = window.devicePixelRatio || 1;
 
-  // rows: [{ startTime, lastEndTime, segments: [{ start_ms, end_ms|null }] }]
-  // Per-client state: Map<clientId, { rowIndex, activeSegmentIdx }>
+  // rows: [{ startTime, segments: [{ start_ms, end_ms|null, clientId }] }]
+  // Per-client active segment: Map<clientId, { rowIndex, activeSegmentIdx }>
   const rows = [];
   const clientState = new Map();
   let lastGlobalEndTime = null;
+
+  // Persistent color per clientId — bright random hue, vivid saturation/lightness
+  const colorMap = new Map();
+  function colorFor(clientId) {
+    if (!colorMap.has(clientId)) {
+      const hue = Math.floor(Math.random() * 360);
+      colorMap.set(clientId, `hsl(${hue}, 100%, 62%)`);
+    }
+    return colorMap.get(clientId);
+  }
 
   function resize() {
     const rect = canvas.parentElement.getBoundingClientRect();
@@ -85,18 +96,27 @@ const DisplayModule = (() => {
     canvas.style.height = rect.height + 'px';
   }
 
+  // True if the time cursor in `row` is within WRAP_MARGIN_MS of the canvas right edge
+  function isNearEdge(row) {
+    const logicalWidth = canvas.width / dpr;
+    const currentPx = PADDING_LEFT + (Date.now() - row.startTime) * PIXELS_PER_MS;
+    return currentPx > logicalWidth - WRAP_MARGIN_MS * PIXELS_PER_MS;
+  }
+
   function signalStart(clientId) {
     const now = Date.now();
-    const isNewRow = lastGlobalEndTime === null || (now - lastGlobalEndTime) > GAP_THRESHOLD_MS;
+    const lastRow = rows[rows.length - 1];
+    const gapTooLong = !lastRow || lastGlobalEndTime === null || (now - lastGlobalEndTime) > GAP_THRESHOLD_MS;
+    const nearEdge = lastRow && isNearEdge(lastRow);
 
-    if (isNewRow) {
-      rows.push({ startTime: now, lastEndTime: null, segments: [] });
+    if (gapTooLong || nearEdge) {
+      rows.push({ startTime: now, segments: [] });
     }
 
     const rowIndex = rows.length - 1;
     const row = rows[rowIndex];
     const segIdx = row.segments.length;
-    row.segments.push({ start_ms: now - row.startTime, end_ms: null });
+    row.segments.push({ start_ms: now - row.startTime, end_ms: null, clientId });
 
     clientState.set(clientId, { rowIndex, activeSegmentIdx: segIdx });
   }
@@ -127,7 +147,7 @@ const DisplayModule = (() => {
 
     const totalRows = rows.length;
     const totalHeight = totalRows * ROW_HEIGHT;
-    // If rows overflow, scroll so newest is at the bottom
+    // Scroll so the newest row is always at the bottom
     const offsetY = Math.max(0, totalHeight * dpr - H);
 
     rows.forEach((row, ri) => {
@@ -137,14 +157,14 @@ const DisplayModule = (() => {
       ctx.fillStyle = '#333';
       ctx.fillRect(PADDING_LEFT * dpr, rowY - (BASELINE_THICKNESS * dpr / 2), W - PADDING_LEFT * dpr, BASELINE_THICKNESS * dpr);
 
-      // Segments
+      // Segments — each colored by its sender
       row.segments.forEach((seg) => {
         const x0 = PADDING_LEFT * dpr + seg.start_ms * PIXELS_PER_MS * dpr;
         const endMs = seg.end_ms !== null ? seg.end_ms : (now - row.startTime);
         const x1 = PADDING_LEFT * dpr + endMs * PIXELS_PER_MS * dpr;
         const w = Math.max(x1 - x0, 2 * dpr);
 
-        ctx.fillStyle = '#00ff88';
+        ctx.fillStyle = colorFor(seg.clientId);
         ctx.fillRect(x0, rowY - (SIGNAL_THICKNESS * dpr / 2), w, SIGNAL_THICKNESS * dpr);
       });
     });
@@ -152,7 +172,7 @@ const DisplayModule = (() => {
     requestAnimationFrame(draw);
   }
 
-  window.addEventListener('resize', resize);
+  new ResizeObserver(resize).observe(canvas.parentElement);
   resize();
   requestAnimationFrame(draw);
 
@@ -236,6 +256,9 @@ const WSModule = (() => {
         if (!isOwn) {
           AudioModule.stop();
           VibrationModule.stop();
+        } else if (transmitting) {
+          // Server safety-timeout fired — stop local output without re-sending signal_end
+          stopLocalOutput();
         }
       }
     });
@@ -282,15 +305,17 @@ transmitBtn.addEventListener('pointerdown', (e) => {
   WSModule.send({ type: 'signal_start' });
 });
 
-function endTransmit() {
+function stopLocalOutput() {
   if (!transmitting) return;
   transmitting = false;
   transmitBtn.classList.remove('active');
-
-  // Immediately stop local audio + vibration
   AudioModule.stop();
   VibrationModule.stop();
+}
 
+function endTransmit() {
+  if (!transmitting) return;
+  stopLocalOutput();
   WSModule.send({ type: 'signal_end' });
 }
 

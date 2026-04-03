@@ -65,7 +65,8 @@ main {
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
-  height: 200px;
+  flex: 1;
+  min-height: 0;
 }
 
 #display {

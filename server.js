@@ -79,7 +79,7 @@ wss.on('connection', (ws) => {
       // Safety: auto-end if client doesn't send signal_end within 3100ms
       client.signalTimeout = setTimeout(() => {
         broadcast({ type: 'signal_end', clientId });
-      }, 3100);
+      }, 1100);
       broadcast({ type: 'signal_start', clientId });
 
     } else if (msg.type === 'signal_end') {
