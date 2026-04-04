@@ -10,15 +10,13 @@ const AudioModule = (() => {
 
   function ensureContext() {
     if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
-  }
-
-  // iOS Chrome doesn't unlock AudioContext via pointer events — touchstart is required.
-  // Call this once on first touch anywhere on the page.
-  function unlockOnTouch() {
-    ensureContext();
     if (ctx.state === 'suspended') ctx.resume();
   }
-  document.addEventListener('touchstart', unlockOnTouch, { once: true, passive: true });
+
+  // Chrome on iOS doesn't unlock AudioContext via pointer events — needs touchstart.
+  document.addEventListener('touchstart', () => {
+    ensureContext();
+  }, { once: true, passive: true });
 
   function start() {
     ensureContext();
@@ -394,10 +392,11 @@ document.addEventListener('visibilitychange', () => {
 // ---------------------------------------------------------------------------
 window.addEventListener('keydown', (e) => {
   if (e.code !== 'Space') return;
-  // Don't interfere with inputs, checkboxes, buttons, etc.
-  if (e.target !== document.body && e.target !== document.documentElement) return;
+  // Only block Space inside text inputs where it has meaning
+  const tag = e.target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
   if (e.repeat) return; // ignore key-repeat auto-fire
-  e.preventDefault(); // prevent page scroll
+  e.preventDefault(); // prevent page scroll and default button-click on Space
 
   if (transmitBtn.disabled || transmitting) return;
   transmitting = true;
