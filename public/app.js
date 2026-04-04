@@ -348,7 +348,7 @@ const transmitBtn = document.getElementById('transmit');
 let transmitting = false;
 
 transmitBtn.addEventListener('pointerdown', (e) => {
-  if (transmitting) return;
+  if (transmitBtn.disabled || transmitting) return;
   // Capture the pointer so pointerup/pointercancel fire on this element
   // even if the finger drifts off — reliable on iOS Safari 13.4+
   transmitBtn.setPointerCapture(e.pointerId);
@@ -399,7 +399,7 @@ window.addEventListener('keydown', (e) => {
   if (e.repeat) return; // ignore key-repeat auto-fire
   e.preventDefault(); // prevent page scroll
 
-  if (transmitting) return;
+  if (transmitBtn.disabled || transmitting) return;
   transmitting = true;
   transmitBtn.classList.add('active');
 
