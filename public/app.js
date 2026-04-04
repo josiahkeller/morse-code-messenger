@@ -13,10 +13,14 @@ const AudioModule = (() => {
     if (ctx.state === 'suspended') ctx.resume();
   }
 
-  // Chrome on iOS doesn't unlock AudioContext via pointer events — needs touchstart.
-  document.addEventListener('touchstart', () => {
-    ensureContext();
-  }, { once: true, passive: true });
+  // Safari (desktop and iOS) does not recognise pointerdown as a user gesture
+  // for AudioContext. Register on events that every browser accepts, without
+  // once:true so the context can be re-resumed if the browser suspends it again.
+  ['mousedown', 'touchstart', 'keydown'].forEach(type => {
+    document.addEventListener(type, () => {
+      if (ctx && ctx.state === 'suspended') ctx.resume();
+    }, { passive: true });
+  });
 
   function start() {
     ensureContext();
