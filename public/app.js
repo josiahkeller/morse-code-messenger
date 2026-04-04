@@ -281,24 +281,25 @@ const WSModule = (() => {
       const isOwn = msg.clientId === myClientId;
 
       if (msg.type === 'signal_start') {
-        DisplayModule.signalStart(msg.clientId);
         if (!isOwn) {
-          // Remote signal — play audio + vibration
+          DisplayModule.signalStart(msg.clientId);
           if (!isMuted()) AudioModule.start();
           if (isVibrateOn()) VibrationModule.start();
         }
-        // Own signal — audio/vibration already started locally on pointerdown
+        // Own signal_start: canvas already updated locally at pointerdown
       }
 
       if (msg.type === 'signal_end') {
-        DisplayModule.signalEnd(msg.clientId);
         if (!isOwn) {
+          DisplayModule.signalEnd(msg.clientId);
           AudioModule.stop();
           VibrationModule.stop();
         } else if (transmitting) {
-          // Server safety-timeout fired — stop local output without re-sending signal_end
+          // Server safety-timeout fired — end everything locally
           stopLocalOutput();
+          DisplayModule.signalEnd(myClientId);
         }
+        // Own normal end: canvas already closed in endTransmit()
       }
     });
 
@@ -346,6 +347,7 @@ transmitBtn.addEventListener('pointerdown', (e) => {
 
   if (!isMuted()) AudioModule.start();
   if (isVibrateOn()) VibrationModule.start();
+  DisplayModule.signalStart(WSModule.getClientId());
 
   WSModule.send({ type: 'signal_start' });
 });
@@ -395,6 +397,7 @@ window.addEventListener('keydown', (e) => {
 
   if (!isMuted()) AudioModule.start();
   if (isVibrateOn()) VibrationModule.start();
+  DisplayModule.signalStart(WSModule.getClientId());
 
   WSModule.send({ type: 'signal_start' });
 });
