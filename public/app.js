@@ -329,7 +329,10 @@ const WSModule = (() => {
 
   function send(data) {
     if (ws && ws.readyState === WebSocket.OPEN) {
+      console.log('[send]', data.type);
       ws.send(JSON.stringify({ ...data, clientId: myClientId }));
+    } else {
+      console.warn('[send] dropped — ws not open:', data.type, ws?.readyState);
     }
   }
 
@@ -386,6 +389,10 @@ window.addEventListener('pointercancel', endTransmit);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) endTransmit();
 });
+
+// End transmission if the window loses focus — catches the case where the mouse
+// button is released outside the browser window and pointerup is never delivered.
+window.addEventListener('blur', endTransmit);
 
 // ---------------------------------------------------------------------------
 // Spacebar support for desktop users
