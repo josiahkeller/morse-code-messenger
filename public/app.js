@@ -10,9 +10,15 @@ const AudioModule = (() => {
 
   function ensureContext() {
     if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
-    // iOS starts AudioContext suspended even inside a gesture; must resume explicitly
+  }
+
+  // iOS Chrome doesn't unlock AudioContext via pointer events — touchstart is required.
+  // Call this once on first touch anywhere on the page.
+  function unlockOnTouch() {
+    ensureContext();
     if (ctx.state === 'suspended') ctx.resume();
   }
+  document.addEventListener('touchstart', unlockOnTouch, { once: true, passive: true });
 
   function start() {
     ensureContext();
@@ -29,9 +35,7 @@ const AudioModule = (() => {
     oscillator.connect(gainNode);
     gainNode.connect(ctx.destination);
     oscillator.start();
-    // Resume after scheduling — if context was suspended the oscillator will
-    // play from the scheduled time once the context starts running.
-    if (ctx.state !== 'running') ctx.resume();
+    if (ctx.state !== 'running') ctx.resume(); // ensure running after scheduling
   }
 
   function stop() {
@@ -255,12 +259,20 @@ const WSModule = (() => {
   let myClientId = null;
   let reconnectDelay = 500;
   const othersCountEl = document.getElementById('others-count');
+  const disconnectedBanner = document.getElementById('disconnected-banner');
+  const transmitBtnEl = document.getElementById('transmit');
+
+  function setConnected(connected) {
+    disconnectedBanner.hidden = connected;
+    transmitBtnEl.disabled = !connected;
+  }
 
   function connect() {
     ws = new WebSocket(wsUrl);
 
     ws.addEventListener('open', () => {
       reconnectDelay = 500;
+      setConnected(true);
     });
 
     ws.addEventListener('message', (event) => {
@@ -304,11 +316,9 @@ const WSModule = (() => {
     });
 
     ws.addEventListener('close', () => {
-      // Clean up any open canvas segment and local audio before reconnecting.
-      // The server already broadcast signal_end with the old clientId to others,
-      // but after reconnect we get a new clientId and would never receive it ourselves.
       if (myClientId) DisplayModule.signalEnd(myClientId);
       stopLocalOutput();
+      setConnected(false);
       ws = null;
       setTimeout(connect, reconnectDelay);
       reconnectDelay = Math.min(reconnectDelay * 2, 10000);
@@ -370,8 +380,6 @@ function endTransmit() {
 // Primary end-of-press listeners on the button (pointer capture ensures these fire)
 transmitBtn.addEventListener('pointerup', endTransmit);
 transmitBtn.addEventListener('pointercancel', endTransmit);
-transmitBtn.addEventListener('lostpointercapture', endTransmit);
-
 // Window fallbacks for anything that slips through
 window.addEventListener('pointerup', endTransmit);
 window.addEventListener('pointercancel', endTransmit);
