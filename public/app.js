@@ -7,40 +7,39 @@ const AudioModule = (() => {
   let ctx = null;
   let oscillator = null;
   let gainNode = null;
+  let startPending = false;
 
   function ensureContext() {
     if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
     if (ctx.state === 'suspended') ctx.resume();
   }
 
-  // Safari (desktop and iOS) does not recognise pointerdown as a user gesture
-  // for AudioContext. Register on events that every browser accepts, without
-  // once:true so the context can be re-resumed if the browser suspends it again.
-  ['mousedown', 'touchstart', 'keydown'].forEach(type => {
-    document.addEventListener(type, () => {
-      if (ctx && ctx.state === 'suspended') ctx.resume();
-    }, { passive: true });
-  });
-
   function start() {
     ensureContext();
-    if (oscillator) return;
-    // Create and start the oscillator synchronously within the user gesture.
-    // iOS only allows audio nodes to start in the synchronous part of a gesture handler;
-    // an async .then() callback is considered outside the gesture and is blocked.
-    oscillator = ctx.createOscillator();
-    gainNode = ctx.createGain();
-    oscillator.type = 'sine';
-    oscillator.frequency.value = 600;
-    gainNode.gain.setValueAtTime(0, ctx.currentTime);
-    gainNode.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.005);
-    oscillator.connect(gainNode);
-    gainNode.connect(ctx.destination);
-    oscillator.start();
-    if (ctx.state !== 'running') ctx.resume(); // ensure running after scheduling
+    startPending = true;
+    const doStart = () => {
+      if (!startPending) return; // stop() was called before resume completed
+      startPending = false;
+      if (oscillator) return;
+      oscillator = ctx.createOscillator();
+      gainNode = ctx.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.value = 600;
+      gainNode.gain.setValueAtTime(0, ctx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.005);
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      oscillator.start();
+    };
+    if (ctx.state !== 'running') {
+      ctx.resume().then(doStart);
+    } else {
+      doStart();
+    }
   }
 
   function stop() {
+    startPending = false; // cancel any pending async start
     if (!oscillator) return;
     const now = ctx.currentTime;
     gainNode.gain.setValueAtTime(gainNode.gain.value, now);
