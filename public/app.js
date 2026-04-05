@@ -269,6 +269,8 @@ const WSModule = (() => {
   }
 
   function connect() {
+    // Guard: don't open a second socket if one is already live
+    if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) return;
     ws = new WebSocket(wsUrl);
 
     ws.addEventListener('open', () => {
@@ -321,8 +323,9 @@ const WSModule = (() => {
       stopLocalOutput();
       setConnected(false);
       ws = null;
-      setTimeout(connect, reconnectDelay);
+      const delay = reconnectDelay;
       reconnectDelay = Math.min(reconnectDelay * 2, 10000);
+      setTimeout(connect, delay);
     });
 
     ws.addEventListener('error', () => {
@@ -340,6 +343,25 @@ const WSModule = (() => {
   }
 
   function getClientId() { return myClientId; }
+
+  // iOS Safari back-forward cache (bfcache): the page can be frozen/restored
+  // without a full reload. Close the WS cleanly on pagehide (prevents the old
+  // dead socket from firing 'close' on restoration and confusing the reconnect
+  // logic), then reconnect immediately when the cached page is brought back.
+  window.addEventListener('pagehide', () => {
+    if (!ws) return;
+    ws.onclose = null; // suppress reconnect — we'll reconnect in pageshow
+    ws.close();
+    ws = null;
+    setConnected(false);
+  });
+
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted) { // page was restored from bfcache
+      reconnectDelay = 500;
+      connect();
+    }
+  });
 
   connect();
   return { send, getClientId };
