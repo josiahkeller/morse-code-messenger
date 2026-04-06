@@ -33,6 +33,7 @@ Then open `http://localhost:8080`, or from other devices on the same network ope
 - **Chrome on iOS**: Audio does not work. iOS requires all browsers to use Safari's WebKit engine, and Chrome on iOS does not grant AudioContext permission the same way Safari does. Use Safari on iPhone/iPad.
 - **iOS**: Tapping fast often opens a little magnifying bubble that interrupts the sending.
 - **Android**: Not yet tested.
+- **iOS Safari reload**: Reloading the page sometimes fails to connect due to iOS's back-forward cache restoring a stale page. If the app shows as disconnected after a reload, close the tab and reopen it.
 
 ## Deployment
 
