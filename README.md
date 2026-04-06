@@ -26,6 +26,11 @@ npm start
 
 Then open `http://localhost:8080`. Open multiple tabs or devices on the same network to test multi-user behavior.
 
+## Known issues
+
+- **Chrome on iOS**: Audio does not work. iOS requires all browsers to use Safari's WebKit engine, and Chrome on iOS does not grant AudioContext permission the same way Safari does. Use Safari on iPhone/iPad.
+- **Android**: Not yet tested.
+
 ## Deployment
 
 The server (`server.js`) can be deployed to any Node.js host. Set the `PORT` environment variable if needed — it defaults to `8080`.
