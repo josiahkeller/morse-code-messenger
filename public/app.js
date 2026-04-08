@@ -236,11 +236,10 @@ const DisplayModule = (() => {
 // ---------------------------------------------------------------------------
 const muteAudioCheckbox = document.getElementById('mute-audio');
 const enableVibrateCheckbox = document.getElementById('enable-vibrate');
-const vibrateNote = document.getElementById('vibrate-note');
 
+const vibrateLabel = document.getElementById('vibrate-label');
 if (!VibrationModule.supported) {
-  enableVibrateCheckbox.disabled = true;
-  vibrateNote.textContent = '(Android only)';
+  vibrateLabel.hidden = true;
 }
 
 muteAudioCheckbox.checked = localStorage.getItem('muteAudio') === 'true';
@@ -265,7 +264,6 @@ const WSModule = (() => {
   let ws = null;
   let myClientId = null;
   let reconnectDelay = 500;
-  let suppressNextClose = false; // set by pagehide to stop the close handler scheduling a reconnect
   let hasConnectedBefore = false;
   const othersCountEl = document.getElementById('others-count');
   const disconnectedBanner = document.getElementById('disconnected-banner');
@@ -329,7 +327,6 @@ const WSModule = (() => {
     });
 
     ws.addEventListener('close', () => {
-      if (suppressNextClose) { suppressNextClose = false; return; }
       if (myClientId) DisplayModule.signalEnd(myClientId);
       stopLocalOutput();
       setConnected(false);
@@ -359,12 +356,12 @@ const WSModule = (() => {
   // without a full reload. Close the WS cleanly on pagehide (prevents the old
   // dead socket from firing 'close' on restoration and confusing the reconnect
   // logic), then reconnect immediately when the cached page is brought back.
+  // Close the WS cleanly when the page is hidden so the server knows immediately.
+  // We intentionally let the close handler run (it schedules reconnect), so if
+  // the page is restored from bfcache or the user comes back, we reconnect.
+  // The connect() guard prevents double-connects if pageshow also calls connect().
   window.addEventListener('pagehide', () => {
-    if (!ws) return;
-    suppressNextClose = true; // prevent the close handler from scheduling a reconnect
-    ws.close();
-    ws = null;
-    setConnected(false);
+    if (ws) ws.close();
   });
 
   window.addEventListener('pageshow', (e) => {
