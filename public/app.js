@@ -63,7 +63,22 @@ const AudioModule = (() => {
   // Call unlock() from a touchstart handler to create/resume the context while
   // still inside a gesture iOS accepts. start() then finds the context already
   // running (or resolves its resume promise) and plays immediately.
-  function unlock() { ensureContext(); }
+  //
+  // Additionally, Web Audio on iOS uses the "ambient" audio session by default,
+  // which the physical mute switch silences. Playing a silent <audio> element
+  // promotes the session to "playback" so Web Audio sounds come through the
+  // speaker regardless of the mute switch.
+  let sessionUnlocked = false;
+  function unlock() {
+    ensureContext();
+    if (!sessionUnlocked) {
+      sessionUnlocked = true;
+      // Minimal silent WAV (44 bytes, 0 samples) played through the <audio> API
+      // to switch iOS AVAudioSession from ambient→playback category.
+      const a = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=');
+      a.play().catch(() => {});
+    }
+  }
 
   return { start, stop, unlock };
 })();
@@ -281,6 +296,7 @@ const WSModule = (() => {
   let ws = null;
   let myClientId = null;
   let reconnectDelay = 500;
+  let reconnectTimer = null;
   let hasConnectedBefore = false;
   const othersCountEl = document.getElementById('others-count');
   const disconnectedBanner = document.getElementById('disconnected-banner');
@@ -359,9 +375,9 @@ const WSModule = (() => {
       setConnected(false);
       ws = null;
       const delay = reconnectDelay;
-      reconnectDelay = Math.min(reconnectDelay * 2, 10000);
+      reconnectDelay = Math.min(reconnectDelay * 2, 3000);
       dlog(`reconnect in ${delay}ms`);
-      setTimeout(connect, delay);
+      reconnectTimer = setTimeout(connect, delay);
     });
 
     socket.addEventListener('error', (e) => {
@@ -395,6 +411,18 @@ const WSModule = (() => {
   window.addEventListener('pageshow', (e) => {
     dlog(`pageshow persisted=${e.persisted} ws=${ws ? ws.readyState : 'null'}`);
     if (e.persisted) { // page was restored from bfcache
+      clearTimeout(reconnectTimer);
+      reconnectDelay = 500;
+      connect();
+    }
+  });
+
+  // When the tab becomes visible again (app foregrounded, tab switched back),
+  // skip any remaining backoff and reconnect immediately.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && !ws) {
+      dlog('visibilitychange → visible, reconnecting');
+      clearTimeout(reconnectTimer);
       reconnectDelay = 500;
       connect();
     }
