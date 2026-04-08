@@ -285,16 +285,17 @@ const WSModule = (() => {
   }
 
   function connect() {
-    // Guard: don't open a second socket if one is already live
-    if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) return;
-    ws = new WebSocket(wsUrl);
+    // Guard: don't open a second socket if one is already live or closing
+    if (ws && ws.readyState !== WebSocket.CLOSED) return;
+    const socket = new WebSocket(wsUrl);
+    ws = socket;
 
-    ws.addEventListener('open', () => {
+    socket.addEventListener('open', () => {
       reconnectDelay = 500;
       setConnected(true);
     });
 
-    ws.addEventListener('message', (event) => {
+    socket.addEventListener('message', (event) => {
       let msg;
       try { msg = JSON.parse(event.data); } catch { return; }
 
@@ -334,7 +335,10 @@ const WSModule = (() => {
       }
     });
 
-    ws.addEventListener('close', () => {
+    socket.addEventListener('close', () => {
+      // If ws was replaced (e.g. pagehide nulled it and pageshow created a new one),
+      // don't clobber the new connection or schedule a redundant reconnect.
+      if (ws !== socket) return;
       if (myClientId) DisplayModule.signalEnd(myClientId);
       stopLocalOutput();
       setConnected(false);
@@ -344,8 +348,8 @@ const WSModule = (() => {
       setTimeout(connect, delay);
     });
 
-    ws.addEventListener('error', () => {
-      ws?.close();
+    socket.addEventListener('error', () => {
+      socket.close();
     });
   }
 
@@ -360,16 +364,14 @@ const WSModule = (() => {
 
   function getClientId() { return myClientId; }
 
-  // iOS Safari back-forward cache (bfcache): the page can be frozen/restored
-  // without a full reload. Close the WS cleanly on pagehide (prevents the old
-  // dead socket from firing 'close' on restoration and confusing the reconnect
-  // logic), then reconnect immediately when the cached page is brought back.
-  // Close the WS cleanly when the page is hidden so the server knows immediately.
-  // We intentionally let the close handler run (it schedules reconnect), so if
-  // the page is restored from bfcache or the user comes back, we reconnect.
-  // The connect() guard prevents double-connects if pageshow also calls connect().
+  // On pagehide, close the socket cleanly so the server knows immediately.
+  // Null ws first so the close handler's instance check (ws !== socket) fires
+  // and skips scheduling a reconnect — pageshow handles that instead.
   window.addEventListener('pagehide', () => {
-    if (ws) ws.close();
+    if (!ws) return;
+    const closing = ws;
+    ws = null;
+    closing.close();
   });
 
   window.addEventListener('pageshow', (e) => {
