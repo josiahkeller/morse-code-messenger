@@ -164,6 +164,20 @@ main {
   opacity: 0.4;
 }
 
+#debug-log {
+  font-size: 0.65rem;
+  color: var(--muted);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 120px;
+  overflow-y: auto;
+  border: 1px solid #2a2a2a;
+  padding: 6px 8px;
+  border-radius: 6px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 #vibrate-note {
   color: var(--muted);
   font-size: 0.8rem;

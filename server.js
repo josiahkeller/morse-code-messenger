@@ -100,15 +100,16 @@ wss.on('connection', (ws) => {
     }
   });
 
-  ws.on('close', () => {
+  ws.on('close', (code, reason) => {
     const client = clients.get(clientId);
     if (client) {
+      const detail = ` code=${code}${reason?.length ? ' reason=' + reason : ''}`;
       if (client.signalTimeout) {
         clearTimeout(client.signalTimeout);
-        console.log(`[${ts()}] DISC+END  ${tag(clientId)}  (disconnected mid-signal)`);
+        console.log(`[${ts()}] DISC+END  ${tag(clientId)}${detail}`);
         broadcast({ type: 'signal_end', clientId });
       } else {
-        console.log(`[${ts()}] DISC      ${tag(clientId)}  (${clients.size - 1} connected)`);
+        console.log(`[${ts()}] DISC      ${tag(clientId)}${detail}  (${clients.size - 1} connected)`);
       }
       clients.delete(clientId);
     }

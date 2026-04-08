@@ -1,6 +1,15 @@
 'use strict';
 
 // ---------------------------------------------------------------------------
+// Debug log — visible on-screen since iOS console isn't accessible
+// ---------------------------------------------------------------------------
+const debugLogEl = document.getElementById('debug-log');
+function dlog(msg) {
+  const t = new Date().toISOString().slice(11, 23);
+  debugLogEl.textContent = `[${t}] ${msg}\n` + debugLogEl.textContent;
+}
+
+// ---------------------------------------------------------------------------
 // AudioModule — plays a 600 Hz sine tone while transmitting
 // ---------------------------------------------------------------------------
 const AudioModule = (() => {
@@ -286,11 +295,16 @@ const WSModule = (() => {
 
   function connect() {
     // Guard: don't open a second socket if one is already live or closing
-    if (ws && ws.readyState !== WebSocket.CLOSED) return;
+    if (ws && ws.readyState !== WebSocket.CLOSED) {
+      dlog(`connect() blocked — readyState=${ws.readyState}`);
+      return;
+    }
+    dlog(`connect() → ${wsUrl}`);
     const socket = new WebSocket(wsUrl);
     ws = socket;
 
     socket.addEventListener('open', () => {
+      dlog('ws open');
       reconnectDelay = 500;
       setConnected(true);
     });
@@ -335,7 +349,8 @@ const WSModule = (() => {
       }
     });
 
-    socket.addEventListener('close', () => {
+    socket.addEventListener('close', (e) => {
+      dlog(`ws close code=${e.code} stale=${ws !== socket}`);
       // If ws was replaced (e.g. pagehide nulled it and pageshow created a new one),
       // don't clobber the new connection or schedule a redundant reconnect.
       if (ws !== socket) return;
@@ -345,10 +360,12 @@ const WSModule = (() => {
       ws = null;
       const delay = reconnectDelay;
       reconnectDelay = Math.min(reconnectDelay * 2, 10000);
+      dlog(`reconnect in ${delay}ms`);
       setTimeout(connect, delay);
     });
 
-    socket.addEventListener('error', () => {
+    socket.addEventListener('error', (e) => {
+      dlog(`ws error — closing`);
       socket.close();
     });
   }
@@ -367,7 +384,8 @@ const WSModule = (() => {
   // On pagehide, close the socket cleanly so the server knows immediately.
   // Null ws first so the close handler's instance check (ws !== socket) fires
   // and skips scheduling a reconnect — pageshow handles that instead.
-  window.addEventListener('pagehide', () => {
+  window.addEventListener('pagehide', (e) => {
+    dlog(`pagehide persisted=${e.persisted} ws=${ws ? ws.readyState : 'null'}`);
     if (!ws) return;
     const closing = ws;
     ws = null;
@@ -375,6 +393,7 @@ const WSModule = (() => {
   });
 
   window.addEventListener('pageshow', (e) => {
+    dlog(`pageshow persisted=${e.persisted} ws=${ws ? ws.readyState : 'null'}`);
     if (e.persisted) { // page was restored from bfcache
       reconnectDelay = 500;
       connect();
