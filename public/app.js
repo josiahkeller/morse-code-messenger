@@ -260,10 +260,24 @@ const DisplayModule = (() => {
 // ---------------------------------------------------------------------------
 const muteAudioCheckbox = document.getElementById('mute-audio');
 const enableVibrateCheckbox = document.getElementById('enable-vibrate');
-
 const vibrateLabel = document.getElementById('vibrate-label');
-if (!VibrationModule.supported) {
+const vibrateNote = document.getElementById('vibrate-note');
+
+// Hide vibrate on desktop (pointer: fine). On mobile where it's not supported
+// (iOS), show it disabled with a note rather than hiding it.
+if (window.matchMedia('(pointer: fine)').matches) {
   vibrateLabel.hidden = true;
+} else if (!VibrationModule.supported) {
+  enableVibrateCheckbox.disabled = true;
+  vibrateNote.textContent = '(Android only)';
+}
+
+// Show a silent-switch warning on iOS, where Web Audio is muted by the
+// physical ring/silent switch. Detect iOS via touch + WebKit UA.
+const isiOS = /iP(ad|hone|od)/.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+if (isiOS) {
+  document.getElementById('silent-switch-note').hidden = false;
 }
 
 // localStorage throws in iOS Safari private browsing — guard every access
@@ -398,14 +412,12 @@ const WSModule = (() => {
   function getClientId() { return myClientId; }
 
   // On pagehide, close the socket cleanly so the server knows immediately.
-  // Null ws first so the close handler's instance check (ws !== socket) fires
-  // and skips scheduling a reconnect — pageshow handles that instead.
+  // Do NOT null ws here — letting the close handler run normally means it
+  // will always schedule a reconnect. Nulling ws first caused the stale
+  // check (ws !== socket) to fire and suppress the reconnect entirely.
   window.addEventListener('pagehide', (e) => {
     dlog(`pagehide persisted=${e.persisted} ws=${ws ? ws.readyState : 'null'}`);
-    if (!ws) return;
-    const closing = ws;
-    ws = null;
-    closing.close();
+    if (ws) ws.close();
   });
 
   window.addEventListener('pageshow', (e) => {
@@ -413,7 +425,9 @@ const WSModule = (() => {
     if (e.persisted) { // page was restored from bfcache
       clearTimeout(reconnectTimer);
       reconnectDelay = 500;
-      connect();
+      // If the socket is already closed (close event fired while frozen),
+      // reconnect immediately; otherwise the close event will do it.
+      if (!ws || ws.readyState === WebSocket.CLOSED) connect();
     }
   });
 

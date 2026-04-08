@@ -139,8 +139,16 @@ main {
 #settings {
   display: flex;
   flex-direction: row;
-  gap: 20px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
   padding: 4px 0;
+}
+
+#silent-switch-note {
+  font-size: 0.8rem;
+  color: #c8a000;
+  margin: 0;
 }
 
 #settings label {
