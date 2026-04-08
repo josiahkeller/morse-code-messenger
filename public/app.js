@@ -50,7 +50,13 @@ const AudioModule = (() => {
     setTimeout(() => osc.stop(), 10);
   }
 
-  return { start, stop };
+  // iOS Safari does not recognise pointerdown as a user gesture for AudioContext.
+  // Call unlock() from a touchstart handler to create/resume the context while
+  // still inside a gesture iOS accepts. start() then finds the context already
+  // running (or resolves its resume promise) and plays immediately.
+  function unlock() { ensureContext(); }
+
+  return { start, stop, unlock };
 })();
 
 // ---------------------------------------------------------------------------
@@ -259,11 +265,15 @@ const WSModule = (() => {
   let ws = null;
   let myClientId = null;
   let reconnectDelay = 500;
+  let suppressNextClose = false; // set by pagehide to stop the close handler scheduling a reconnect
+  let hasConnectedBefore = false;
   const othersCountEl = document.getElementById('others-count');
   const disconnectedBanner = document.getElementById('disconnected-banner');
   const transmitBtnEl = document.getElementById('transmit');
 
   function setConnected(connected) {
+    if (connected) hasConnectedBefore = true;
+    if (!connected) disconnectedBanner.textContent = hasConnectedBefore ? 'Reconnecting…' : 'Connecting…';
     disconnectedBanner.hidden = connected;
     transmitBtnEl.disabled = !connected;
   }
@@ -319,6 +329,7 @@ const WSModule = (() => {
     });
 
     ws.addEventListener('close', () => {
+      if (suppressNextClose) { suppressNextClose = false; return; }
       if (myClientId) DisplayModule.signalEnd(myClientId);
       stopLocalOutput();
       setConnected(false);
@@ -350,7 +361,7 @@ const WSModule = (() => {
   // logic), then reconnect immediately when the cached page is brought back.
   window.addEventListener('pagehide', () => {
     if (!ws) return;
-    ws.onclose = null; // suppress reconnect — we'll reconnect in pageshow
+    suppressNextClose = true; // prevent the close handler from scheduling a reconnect
     ws.close();
     ws = null;
     setConnected(false);
@@ -372,6 +383,10 @@ const WSModule = (() => {
 // ---------------------------------------------------------------------------
 const transmitBtn = document.getElementById('transmit');
 let transmitting = false;
+
+// touchstart fires before pointerdown and IS a recognized user gesture for
+// AudioContext on iOS — use it to unlock the context so pointerdown can play audio.
+transmitBtn.addEventListener('touchstart', () => AudioModule.unlock(), { passive: true });
 
 transmitBtn.addEventListener('pointerdown', (e) => {
   if (transmitBtn.disabled || transmitting) return;

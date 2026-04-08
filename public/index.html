@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="disconnected-banner" hidden>Reconnecting…</div>
+  <div id="disconnected-banner">Connecting…</div>
 
   <header>
     <h1>Morse Code Messenger</h1>
@@ -33,7 +33,7 @@
       <canvas id="display"></canvas>
     </div>
 
-    <button id="transmit" aria-label="Hold to transmit">
+    <button id="transmit" disabled aria-label="Hold to transmit">
       Hold to Transmit
       <span id="spacebar-hint"> or hold Space</span>
     </button>
