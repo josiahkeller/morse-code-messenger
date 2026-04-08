@@ -242,14 +242,22 @@ if (!VibrationModule.supported) {
   vibrateLabel.hidden = true;
 }
 
-muteAudioCheckbox.checked = localStorage.getItem('muteAudio') === 'true';
-enableVibrateCheckbox.checked = localStorage.getItem('enableVibrate') === 'true';
+// localStorage throws in iOS Safari private browsing — guard every access
+function storageGet(key) {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+function storageSet(key, value) {
+  try { localStorage.setItem(key, value); } catch { /* unavailable */ }
+}
+
+muteAudioCheckbox.checked = storageGet('muteAudio') === 'true';
+enableVibrateCheckbox.checked = storageGet('enableVibrate') === 'true';
 
 muteAudioCheckbox.addEventListener('change', () => {
-  localStorage.setItem('muteAudio', muteAudioCheckbox.checked);
+  storageSet('muteAudio', muteAudioCheckbox.checked);
 });
 enableVibrateCheckbox.addEventListener('change', () => {
-  localStorage.setItem('enableVibrate', enableVibrateCheckbox.checked);
+  storageSet('enableVibrate', enableVibrateCheckbox.checked);
 });
 
 function isMuted() { return muteAudioCheckbox.checked; }
